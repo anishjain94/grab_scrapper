@@ -4,8 +4,11 @@ import playwright
 from fp.fp import FreeProxy
 from playwright.async_api import BrowserContext, Page, Route, async_playwright
 
-proxy = FreeProxy(country_id="SG", timeout=1).get()
-print(proxy)
+
+def GetProxy() -> str:
+    proxy = FreeProxy(country_id="SG", timeout=1).get()
+    print(proxy)
+    return proxy
 
 
 currentIdx = 0
@@ -32,7 +35,7 @@ async def main():
         vendorInstance = await vendor.launch(
             slow_mo=1000, headless=False,
             proxy={
-                "server": proxy,
+                "server": GetProxy(),
             }
         )
 
@@ -48,7 +51,6 @@ async def main():
         await page.get_by_text("Type your location").click()
 
         await page.route("**/search", handle_route)
-        await page.route("/search", handle_route)
 
         await page.keyboard.type(
             "Embassy Of The Republic Of The Philippines", delay=20)
@@ -58,9 +60,6 @@ async def main():
 
         await page.wait_for_load_state('networkidle', timeout=100000)
         await page.mouse.wheel(0, 1500)
-        await page.wait_for_load_state('networkidle', timeout=100000)
-
-        await page.wait_for_load_state("domcontentloaded", timeout=100000)
 
         await page.wait_for_timeout(100000)
 
