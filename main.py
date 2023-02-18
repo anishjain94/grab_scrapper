@@ -16,8 +16,8 @@ currentIdx = 0
 data = {}
 field_names = ['name', 'latitude', 'longitude']
 
-location = ["Embassy Of Japan - 16 Nassim Road, Singapore",
-            "Signature Park Condominium - 46A Toh Tuck Road, Singapore, 596738"]
+location = [
+    "Signature Park Condominium - 46A Toh Tuck Road, Singapore, 596738", "Embassy Of Japan - 16 Nassim Road, Singapore", ]
 
 
 async def handle_route(route: Route) -> None:
@@ -51,8 +51,6 @@ async def StoreData(data: dict):
 
 async def searchNewArea(page: Page, location: str):
     await page.get_by_text("Type your location").click()
-
-    await page.route("**/search", handle_route)
 
     await page.keyboard.type(
         location, delay=20)
@@ -88,13 +86,11 @@ async def StartSearch(location: list, currentLocationIdx: int):
         page = await browser.new_page()
 
         await page.goto("https://food.grab.com/sg/en/restaurants", timeout=1000000)
+        await page.route("**/search", handle_route)
 
         await searchNewArea(page, location[currentIdx])
 
-        print(data.keys())
-
         while data.get(currentIdx-1) != None:
-            print(data.keys())
             await page.mouse.wheel(0, 1000)
             await page.wait_for_timeout(10000)
             StartSearch(location, currentLocationIdx+1)
