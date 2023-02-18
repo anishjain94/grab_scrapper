@@ -1,8 +1,9 @@
 import asyncio
+import csv
+import json
 
-import playwright
 from fp.fp import FreeProxy
-from playwright.async_api import BrowserContext, Page, Route, async_playwright
+from playwright.async_api import Page, Route, async_playwright
 
 
 def GetProxy() -> str:
@@ -13,29 +14,69 @@ def GetProxy() -> str:
 
 currentIdx = 0
 data = {}
+field_names = ['name', 'latitude', 'longitude']
+
+location = ["Embassy Of Japan - 16 Nassim Road, Singapore",
+            "Signature Park Condominium - 46A Toh Tuck Road, Singapore, 596738"]
 
 
 async def handle_route(route: Route) -> None:
     response = await route.fetch()
     body = await response.text()
     global currentIdx
-    print(body)
-    data[currentIdx] = body
-    currentIdx += 1
+    data[currentIdx] = json.loads(body)
+    print(data)
     await route.fulfill(
         response=response,
         body=body,
         headers=response.headers,
     )
+    await StoreData(data)
+    currentIdx += 1
 
 
-async def main():
+async def StoreData(data: dict):
+    locationInfo = list()
+
+    for restaurants in data[currentIdx]["searchResult"]["searchMerchants"]:
+        locationInfo.append(
+            {field_names[0]: restaurants["chainName"], field_names[1]: restaurants["latlng"]["latitude"], field_names[2]: restaurants["latlng"]["longitude"]})
+
+    with open('locationInfo.csv', 'a') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=field_names)
+        writer.writeheader()
+        writer.writerows(locationInfo)
+        csvfile.close()
+
+
+async def searchNewArea(page: Page, location: str):
+    await page.get_by_text("Type your location").click()
+
+    await page.route("**/search", handle_route)
+
+    await page.keyboard.type(
+        location, delay=20)
+    await page.wait_for_timeout(10000)
+    await page.keyboard.press("ArrowDown")
+    await page.keyboard.press("Enter")
+
+    await page.wait_for_load_state('networkidle', timeout=100000)
+    await page.mouse.wheel(0, 1500)
+
+    await page.wait_for_timeout(100000)
+
+
+async def StartSearch(location: list, currentLocationIdx: int):
+
+    if currentLocationIdx >= len(location):
+        return
+
     async with async_playwright() as playwright:
         vendor = playwright.chromium
         vendorInstance = await vendor.launch(
-            slow_mo=1000, headless=False,
+            slow_mo=2500, headless=False,
             proxy={
-                "server": GetProxy(),
+                "server": "http://8.219.97.248:80"  # GetProxy(),
             }
         )
 
@@ -48,20 +89,7 @@ async def main():
 
         await page.goto("https://food.grab.com/sg/en/restaurants", timeout=1000000)
 
-        await page.get_by_text("Type your location").click()
-
-        await page.route("**/search", handle_route)
-
-        await page.keyboard.type(
-            "Embassy Of The Republic Of The Philippines", delay=20)
-        await page.wait_for_timeout(5000)
-        await page.keyboard.press("ArrowDown")
-        await page.keyboard.press("Enter")
-
-        await page.wait_for_load_state('networkidle', timeout=100000)
-        await page.mouse.wheel(0, 1500)
-
-        await page.wait_for_timeout(100000)
+        await searchNewArea(page, location[currentIdx])
 
         print(data.keys())
 
@@ -69,8 +97,8 @@ async def main():
             print(data.keys())
             await page.mouse.wheel(0, 1000)
             await page.wait_for_timeout(10000)
+            StartSearch(location, currentLocationIdx+1)
+            await browser.close()
 
-        await browser.close()
 
-
-asyncio.run(main())
+asyncio.run(StartSearch(location, 0))
